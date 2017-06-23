@@ -26,13 +26,13 @@ THE SOFTWARE.
 
 #define rcIN 12
 #define ApFET 2
-#define AnFET 13
+#define AnFET 13 //PWM
 
-#define BpFET 3
+#define BpFET 3 //PWM
 #define BnFET 7
 
 #define CpFET 4
-#define CnFET 5
+#define CnFET 5 //PWM
 
 
 
@@ -41,7 +41,15 @@ THE SOFTWARE.
 void setup() {
   // initialize digital pin LED_BUILTIN as an output.
   pinMode(ApFET, OUTPUT);
-  pinMode
+  pinMode(AnFET, OUTPUT);
+  pinMode(BpFET, OUTPUT);
+  pinMode(BnFET, OUTPUT);
+  pinMode(CpFET, OUTPUT);
+  pinMode(CnFET, OUTPUT);
+
+  digitalWrite(ApFET, HIGH);
+  digitalWrite(BpFET, HIGH);
+  digitalWrite(CpFET, HIGH);
 
   delay(4000);
 
@@ -53,7 +61,7 @@ void loop() {
     digitalWrite(4,HIGH);
     digitalWrite(7,LOW);
 
-    delay(3);
+    delay(1);
 
     digitalWrite(4,LOW);
     digitalWrite(7,HIGH);
