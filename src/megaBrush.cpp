@@ -23,6 +23,7 @@ THE SOFTWARE.
 
 
 #include <Arduino.h>
+#include <EEPROM.h>
 
 
 #include <SoftPWM.h>
@@ -52,8 +53,11 @@ THE SOFTWARE.
 #define CpFET 4
 #define CnFET 5 //PWM
 
-#define PPM_MAX_LOC = 128;
-#define PPM_MIN_LOC = 64;
+#define PPM_MAX_LOC  128
+#define PPM_MIN_LOC  64
+
+#define DEADBAND 20
+#define TIMEOUT 2000
 
 SOFTPWM_DEFINE_CHANNEL_INVERT(1, DDRD, PORTD, PORTD2);  //Arduino pin 2 ApFET
 SOFTPWM_DEFINE_CHANNEL_INVERT(2, DDRD, PORTD, PORTD3);  //Arduino pin 3 BpFET
@@ -69,6 +73,12 @@ SOFTPWM_DEFINE_EXTERN_OBJECT_WITH_PWM_LEVELS(7, 250);
 int finalSpeed = 0; //-250 - 0 - 250
 long pulse_time = 0;
 
+int lastPulse = 100;
+long lastUpdate = 0;
+
+int rcMin = 125;
+int rcMax = 300;
+
 
 //This function sets the actual speed to the motor
 void applySpeed(int speed){
@@ -77,6 +87,9 @@ void applySpeed(int speed){
   }
   else if (speed < -250){
     speed = -250;
+  }
+  if (speed < DEADBAND && speed > DEADBAND * -1){
+    speed = 0;
   }
 
   if (speed > 0){
@@ -100,20 +113,93 @@ void applySpeed(int speed){
 
 }
 
+void doBeep(){
+  applySpeed(100);
+  delay(100);
+  applySpeed(0);
+  delay(100);
+}
+
+void EEPROMWritelong(int address, long value){
+  //Decomposition from a long to 4 bytes by using bitshift.
+  //One = Most significant -> Four = Least significant byte
+  byte four = (value & 0xFF);
+  byte three = ((value >> 8) & 0xFF);
+  byte two = ((value >> 16) & 0xFF);
+  byte one = ((value >> 24) & 0xFF);
+
+  //Write the 4 bytes into the eeprom memory.
+  EEPROM.write(address, four);
+  EEPROM.write(address + 1, three);
+  EEPROM.write(address + 2, two);
+  EEPROM.write(address + 3, one);
+}
+
+long EEPROMReadlong(long address) {
+  //Read the 4 bytes from the eeprom memory.
+  long four = EEPROM.read(address);
+  long three = EEPROM.read(address + 1);
+  long two = EEPROM.read(address + 2);
+  long one = EEPROM.read(address + 3);
+
+  //Return the recomposed long by using bitshift.
+  return ((four << 0) & 0xFF) + ((three << 8) & 0xFFFF) + ((two << 16) & 0xFFFFFF) + ((one << 24) & 0xFFFFFFFF);
+}
+
+void programMinMax(){
+  long max = 0;
+  long min = 10000;
+  doBeep();
+  doBeep();
+  lastUpdate = millis();
+  while(millis() - lastUpdate < TIMEOUT){
+    pulse_time = pulseIn(rcIN, HIGH, 25000);
+    if (pulse_time > max){
+      max = pulse_time;
+      lastUpdate = millis();
+    }
+  }
+  doBeep();
+  lastUpdate = millis();
+
+  while(millis() - lastUpdate < TIMEOUT){
+    pulse_time = pulseIn(rcIN, HIGH, 25000);
+    if (pulse_time < min){
+      min = pulse_time;
+      lastUpdate = millis();
+    }
+  }
+  doBeep();
+  doBeep();
+  doBeep();
+  doBeep();
+  delay(2000);
+  EEPROMWritelong(PPM_MIN_LOC, min);
+  EEPROMWritelong(PPM_MAX_LOC, max);
+
+
+}
+
 
 // the setup function runs once when you press reset or power the board
 void setup() {
   pinMode(rcIN, INPUT);
-  Palatis::SoftPWM.begin(600);
+  Palatis::SoftPWM.begin(400);
   Palatis::SoftPWM.allOff();
   delay(2000);
 
+  pulse_time = pulseIn(rcIN, HIGH, 25000);
+  rcMin = EEPROMReadlong(PPM_MIN_LOC);
+  rcMax = EEPROMReadlong(PPM_MAX_LOC);
+  if (pulse_time > rcMax * 0.8){
+      programMinMax();
+  }
   applySpeed(0);
-
+  rcMin = EEPROMReadlong(PPM_MIN_LOC);
+  rcMax = EEPROMReadlong(PPM_MAX_LOC);
 }
 
-int lastPulse = 100;
-long lastUpdate = 0;
+
 // the loop function runs over and over again forever
 void loop() {
     pulse_time = pulseIn(rcIN, HIGH, 25000);
@@ -121,12 +207,15 @@ void loop() {
       lastPulse = pulse_time;
       lastUpdate = millis();
     }
-
-    if (millis() - lastUpdate > 2000 || pulse_time == 0){
+    if (millis() - lastUpdate > TIMEOUT || pulse_time == 0){
+      //In the event the ESC is running for 31 days an the varible flips over. Lets not thow an error :)
+      if (millis() < 2000 && lastUpdate > 2000 ){
+        lastUpdate = millis();
+      }
       applySpeed(0);
     }
     else {
-      finalSpeed = map(pulse_time, 125, 300, -250, 250);
+      finalSpeed = map(pulse_time, rcMin, rcMax, -250, 250);
       applySpeed(finalSpeed);
     }
 
