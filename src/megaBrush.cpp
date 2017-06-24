@@ -42,7 +42,7 @@ THE SOFTWARE.
    on the ATmega328P or ATmega168 used on Arduino Uno, Pro Mini,
    Nano and other boards. */
 
-#define rcIN 12
+#define rcIN 8
 #define ApFET 2
 #define AnFET 13 //PWM
 
@@ -52,7 +52,8 @@ THE SOFTWARE.
 #define CpFET 4
 #define CnFET 5 //PWM
 
-
+#define PPM_MAX_LOC = 128;
+#define PPM_MIN_LOC = 64;
 
 SOFTPWM_DEFINE_CHANNEL_INVERT(1, DDRD, PORTD, PORTD2);  //Arduino pin 2 ApFET
 SOFTPWM_DEFINE_CHANNEL_INVERT(2, DDRD, PORTD, PORTD3);  //Arduino pin 3 BpFET
@@ -66,19 +67,8 @@ SOFTPWM_DEFINE_OBJECT_WITH_PWM_LEVELS(7, 250);
 SOFTPWM_DEFINE_EXTERN_OBJECT_WITH_PWM_LEVELS(7, 250);
 
 int finalSpeed = 0; //-250 - 0 - 250
+long pulse_time = 0;
 
-
-
-// the setup function runs once when you press reset or power the board
-void setup() {
-
-
-  Palatis::SoftPWM.begin(400);
-  Palatis::SoftPWM.allOff();
-  delay(3000);
-
-
-}
 
 //This function sets the actual speed to the motor
 void applySpeed(int speed){
@@ -101,19 +91,44 @@ void applySpeed(int speed){
     Palatis::SoftPWM.set(2,speed * -1); //BpFET //Chop the high side
     Palatis::SoftPWM.set(6,250); //AnFET
   }
+  else {
+    Palatis::SoftPWM.set(1, 0); //Stop th ApFET
+    Palatis::SoftPWM.set(5, 255); //Stop at BnFET
+    Palatis::SoftPWM.set(2, 0); //BpFET //Chop the high side
+    Palatis::SoftPWM.set(6, 255); //AnFET
+  }
 
 }
 
+
+// the setup function runs once when you press reset or power the board
+void setup() {
+  pinMode(rcIN, INPUT);
+  Palatis::SoftPWM.begin(600);
+  Palatis::SoftPWM.allOff();
+  delay(2000);
+
+  applySpeed(0);
+
+}
+
+int lastPulse = 100;
+long lastUpdate = 0;
 // the loop function runs over and over again forever
 void loop() {
+    pulse_time = pulseIn(rcIN, HIGH, 25000);
+    if (pulse_time != lastPulse){
+      lastPulse = pulse_time;
+      lastUpdate = millis();
+    }
 
-  for(int x = -255; x < 255; x++ ){
-    applySpeed(x);
-    delay(30);
-  }
-  for(int x = 255; x > -255; x-- ){
-    applySpeed(x);
-    delay(30);
-  }
+    if (millis() - lastUpdate > 2000 || pulse_time == 0){
+      applySpeed(0);
+    }
+    else {
+      finalSpeed = map(pulse_time, 125, 300, -250, 250);
+      applySpeed(finalSpeed);
+    }
 
+  delay(10);
 }
