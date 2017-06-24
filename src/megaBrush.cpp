@@ -53,17 +53,20 @@ THE SOFTWARE.
 #define CnFET 5 //PWM
 
 
-int x = 0;
-bool up = true;
 
-// SOFTPWM_DEFINE_CHANNEL(2, DDRD, PORTD, PORTD2);  //Arduino pin 2
-// SOFTPWM_DEFINE_CHANNEL_INVERT(3, DDRD, PORTD, PORTD3);  //Arduino pin 3
-// SOFTPWM_DEFINE_CHANNEL(4, DDRD, PORTD, PORTD4);  //Arduino pin 4
-SOFTPWM_DEFINE_CHANNEL(5, DDRD, PORTD, PORTD5);  //Arduino pin 5
-// SOFTPWM_DEFINE_CHANNEL(7, DDRD, PORTD, PORTD7);  //Arduino pin 7
-// SOFTPWM_DEFINE_CHANNEL(13, DDRB, PORTB, PORTB5);  //Arduino pin 13
- SOFTPWM_DEFINE_OBJECT_WITH_PWM_LEVELS(6, 250);
- SOFTPWM_DEFINE_EXTERN_OBJECT_WITH_PWM_LEVELS(6, 250);
+SOFTPWM_DEFINE_CHANNEL_INVERT(1, DDRD, PORTD, PORTD2);  //Arduino pin 2 ApFET
+SOFTPWM_DEFINE_CHANNEL_INVERT(2, DDRD, PORTD, PORTD3);  //Arduino pin 3 BpFET
+SOFTPWM_DEFINE_CHANNEL_INVERT(3, DDRD, PORTD, PORTD4);  //Arduino pin 4 CpFET
+
+SOFTPWM_DEFINE_CHANNEL(4, DDRD, PORTD, PORTD5);  //Arduino pin 5   CnFET
+SOFTPWM_DEFINE_CHANNEL(5, DDRD, PORTD, PORTD7);  //Arduino pin 7   BnFET
+SOFTPWM_DEFINE_CHANNEL(6, DDRB, PORTB, PORTB1);  //Arduino pin 13  AnFET
+
+SOFTPWM_DEFINE_OBJECT_WITH_PWM_LEVELS(7, 250);
+SOFTPWM_DEFINE_EXTERN_OBJECT_WITH_PWM_LEVELS(7, 250);
+
+int finalSpeed = 0; //-250 - 0 - 250
+
 
 
 // the setup function runs once when you press reset or power the board
@@ -71,71 +74,46 @@ void setup() {
 
 
   Palatis::SoftPWM.begin(400);
+  Palatis::SoftPWM.allOff();
+  delay(3000);
 
-  // initialize digital pin LED_BUILTIN as an output.
-  pinMode(ApFET, OUTPUT);
-  pinMode(AnFET, OUTPUT);
-  pinMode(BpFET, OUTPUT);
-  pinMode(BnFET, OUTPUT);
-  pinMode(CpFET, OUTPUT);
-  pinMode(CnFET, OUTPUT);
 
-  digitalWrite(ApFET, HIGH); //Shutdown the highside
-  digitalWrite(BpFET, HIGH);
-  digitalWrite(CpFET, HIGH);
+}
 
-  delay(1000);
-  digitalWrite(BpFET,LOW);
-  digitalWrite(CnFET, HIGH);
+//This function sets the actual speed to the motor
+void applySpeed(int speed){
+  if (speed > 250){
+    speed = 250;
+  }
+  else if (speed < -250){
+    speed = -250;
+  }
 
-  delay(1000);
-  digitalWrite(BpFET,HIGH);
-  digitalWrite(CnFET, LOW);
-
-  delay(1000);
-
+  if (speed > 0){
+    Palatis::SoftPWM.set(2, 0); //ApFET //Chop the high side
+    Palatis::SoftPWM.set(6, 0); //Stop at AnFET
+    Palatis::SoftPWM.set(1,speed); //ApFET //Chop the high side
+    Palatis::SoftPWM.set(5,250); //BnFET
+  }
+  else if (speed < 0){
+    Palatis::SoftPWM.set(1, 0); //Stop th ApFET
+    Palatis::SoftPWM.set(5, 0); //Stop at BnFET
+    Palatis::SoftPWM.set(2,speed * -1); //BpFET //Chop the high side
+    Palatis::SoftPWM.set(6,250); //AnFET
+  }
 
 }
 
 // the loop function runs over and over again forever
 void loop() {
 
-    digitalWrite(BpFET,LOW);
-    Palatis::SoftPWM.set(5,x);
-    //digitalWrite(CnFET, HIGH);
+  for(int x = -255; x < 255; x++ ){
+    applySpeed(x);
+    delay(30);
+  }
+  for(int x = 255; x > -255; x-- ){
+    applySpeed(x);
+    delay(30);
+  }
 
-    if (x > 254 && up == true){
-      up = false;
-      x--;
-    }
-    if (x < 1 && up == false){
-      up = true;
-      x++;
-    }
-
-    if (up){
-      x++;
-    } else {
-      x--;
-    }
-
-    delay(10);
-   // tone(7,400,100);
-
-
-//  digitalWrite(4, HIGH);  //Cp OFF
-//  digitalWrite(7, LOW);   //Bn OFF
-//
-//
-//  digitalWrite(3, LOW);   //Bp ON;
-//  digitalWrite(5, HIGH);  //Cn ON;
-//
-//  delay(250);
-//  digitalWrite(4, LOW);  //Cp ON
-//  digitalWrite(7, HIGH); //Bn ON
-//
-//  digitalWrite(3, HIGH); //Bp OFF;
-//  digitalWrite(5, LOW); //Cn ON;
-                                    // turn the LED off by making the voltage LOW
- // delay(250);                       // wait for a second
 }
