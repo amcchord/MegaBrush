@@ -43,32 +43,56 @@ THE SOFTWARE.
    on the ATmega328P or ATmega168 used on Arduino Uno, Pro Mini,
    Nano and other boards. */
 
-#define rcIN 8
-#define ApFET 2
-#define AnFET 13 //PWM
 
-#define BpFET 3 //PWM
-#define BnFET 7
 
-#define CpFET 4
-#define CnFET 5 //PWM
+// KingKong AKA BlueSeries 12a
+
+
+// RC_IN D2 -> D2
+//
+// AnFet D5 -> D5
+// ApFet D4 -> D4
+// BnFet C4 -> A4
+// BpFet C5 -> A5
+// CnFet B0 -> D8
+// CpFet C3 -> A3
+
+
+//Settings for KingKong 12a
+#define rcIN 2
+SOFTPWM_DEFINE_CHANNEL_INVERT(0, DDRD, PORTD, PORTD4);  //Arduino pin 2 ApFET
+SOFTPWM_DEFINE_CHANNEL_INVERT(1, DDRC, PORTC, PORTC3);  //Arduino pin 4 CpFET
+
+SOFTPWM_DEFINE_CHANNEL(2, DDRB, PORTB, PORTB0);  //Arduino pin 5   CnFET
+SOFTPWM_DEFINE_CHANNEL(3, DDRD, PORTD, PORTD5);  //Arduino pin 13  AnFET
+//*/
+
+
+// Settings for DYS 16a
+//
+// #define rcIN 8
+//
+// SOFTPWM_DEFINE_CHANNEL_INVERT(1, DDRD, PORTD, PORTD2);  //Arduino pin 2 ApFET
+// SOFTPWM_DEFINE_CHANNEL_INVERT(2, DDRD, PORTD, PORTD3);  //Arduino pin 3 BpFET
+// SOFTPWM_DEFINE_CHANNEL_INVERT(3, DDRD, PORTD, PORTD4);  //Arduino pin 4 CpFET
+//
+// SOFTPWM_DEFINE_CHANNEL(4, DDRD, PORTD, PORTD5);  //Arduino pin 5   CnFET
+// SOFTPWM_DEFINE_CHANNEL(5, DDRD, PORTD, PORTD7);  //Arduino pin 7   BnFET
+// SOFTPWM_DEFINE_CHANNEL(6, DDRB, PORTB, PORTB1);  //Arduino pin 13  AnFET
+
 
 #define PPM_MAX_LOC  128
 #define PPM_MIN_LOC  64
+#define PWM_LEVELS 128
+#define PWM_HZ 600
 
 #define DEADBAND 20
 #define TIMEOUT 2000
 
-SOFTPWM_DEFINE_CHANNEL_INVERT(1, DDRD, PORTD, PORTD2);  //Arduino pin 2 ApFET
-SOFTPWM_DEFINE_CHANNEL_INVERT(2, DDRD, PORTD, PORTD3);  //Arduino pin 3 BpFET
-SOFTPWM_DEFINE_CHANNEL_INVERT(3, DDRD, PORTD, PORTD4);  //Arduino pin 4 CpFET
 
-SOFTPWM_DEFINE_CHANNEL(4, DDRD, PORTD, PORTD5);  //Arduino pin 5   CnFET
-SOFTPWM_DEFINE_CHANNEL(5, DDRD, PORTD, PORTD7);  //Arduino pin 7   BnFET
-SOFTPWM_DEFINE_CHANNEL(6, DDRB, PORTB, PORTB1);  //Arduino pin 13  AnFET
 
-SOFTPWM_DEFINE_OBJECT_WITH_PWM_LEVELS(7, 250);
-SOFTPWM_DEFINE_EXTERN_OBJECT_WITH_PWM_LEVELS(7, 250);
+SOFTPWM_DEFINE_OBJECT_WITH_PWM_LEVELS(4, PWM_LEVELS);
+SOFTPWM_DEFINE_EXTERN_OBJECT_WITH_PWM_LEVELS(4, PWM_LEVELS);
 
 int finalSpeed = 0; //-250 - 0 - 250
 long pulse_time = 0;
@@ -82,40 +106,43 @@ int rcMax = 300;
 
 //This function sets the actual speed to the motor
 void applySpeed(int speed){
-  if (speed > 250){
-    speed = 250;
+  if (speed > PWM_LEVELS){
+    speed = PWM_LEVELS;
   }
-  else if (speed < -250){
-    speed = -250;
+  else if (speed < PWM_LEVELS * -1){
+    speed = PWM_LEVELS * -1;
   }
   if (speed < DEADBAND && speed > DEADBAND * -1){
     speed = 0;
   }
 
   if (speed > 0){
-    Palatis::SoftPWM.set(2, 0); //ApFET //Chop the high side
-    Palatis::SoftPWM.set(6, 0); //Stop at AnFET
-    Palatis::SoftPWM.set(1,speed); //ApFET //Chop the high side
-    Palatis::SoftPWM.set(5,250); //BnFET
+    speed = map(speed, DEADBAND, PWM_LEVELS, 0, PWM_LEVELS);
+    Palatis::SoftPWM.set(1, 0); //Stop CpFET
+    Palatis::SoftPWM.set(3, 0); //Stop at AnFET
+    Palatis::SoftPWM.set(0, speed); //ApFET //Chop the high side
+    Palatis::SoftPWM.set(2, PWM_LEVELS); //CnFET
   }
   else if (speed < 0){
-    Palatis::SoftPWM.set(1, 0); //Stop th ApFET
-    Palatis::SoftPWM.set(5, 0); //Stop at BnFET
-    Palatis::SoftPWM.set(2,speed * -1); //BpFET //Chop the high side
-    Palatis::SoftPWM.set(6,250); //AnFET
+    speed = map(speed * -1, DEADBAND, PWM_LEVELS, 0, PWM_LEVELS) * -1;
+    Palatis::SoftPWM.set(0, 0); //Stop th ApFET
+    Palatis::SoftPWM.set(2, 0); //Stop at CnFET
+    Palatis::SoftPWM.set(1, speed * -1); //CpFET //Chop the high side
+    Palatis::SoftPWM.set(3, PWM_LEVELS); //AnFET Open
   }
   else {
-    Palatis::SoftPWM.set(1, 0); //Stop th ApFET
-    Palatis::SoftPWM.set(5, 255); //Stop at BnFET
-    Palatis::SoftPWM.set(2, 0); //BpFET //Chop the high side
-    Palatis::SoftPWM.set(6, 255); //AnFET
+    //Lets tie both pins to ground for breaking
+    Palatis::SoftPWM.set(0, 0); //Stop ApFET
+    Palatis::SoftPWM.set(2, PWM_LEVELS); //CnFET Open
+    Palatis::SoftPWM.set(1, 0); //Stop CpFET
+    Palatis::SoftPWM.set(3, PWM_LEVELS); //AnFET Open
   }
 
 }
 
 void doBeep(){
   applySpeed(100);
-  delay(100);
+  delay(10);
   applySpeed(0);
   delay(100);
 }
@@ -174,6 +201,10 @@ void programMinMax(){
   doBeep();
   doBeep();
   delay(2000);
+  if (max - min < 20){
+    //Not enough different between max and min;
+    return;
+  }
   EEPROMWritelong(PPM_MIN_LOC, min);
   EEPROMWritelong(PPM_MAX_LOC, max);
 
@@ -184,10 +215,9 @@ void programMinMax(){
 // the setup function runs once when you press reset or power the board
 void setup() {
   pinMode(rcIN, INPUT);
-  Palatis::SoftPWM.begin(400);
+  Palatis::SoftPWM.begin(PWM_HZ);
   Palatis::SoftPWM.allOff();
   delay(2000);
-
   pulse_time = pulseIn(rcIN, HIGH, 25000);
   rcMin = EEPROMReadlong(PPM_MIN_LOC);
   rcMax = EEPROMReadlong(PPM_MAX_LOC);
@@ -215,9 +245,8 @@ void loop() {
       applySpeed(0);
     }
     else {
-      finalSpeed = map(pulse_time, rcMin, rcMax, -250, 250);
+      finalSpeed = map(pulse_time, rcMin, rcMax, PWM_LEVELS * -1, PWM_LEVELS);
       applySpeed(finalSpeed);
     }
-
-  delay(10);
+    delay(10);
 }
