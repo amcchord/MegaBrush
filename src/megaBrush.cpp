@@ -25,25 +25,7 @@ THE SOFTWARE.
 #include <Arduino.h>
 #include <EEPROM.h>
 
-
 #include <SoftPWM.h>
-
-/* pins_arduino.h defines the pin-port/bit mapping as PROGMEM so
-   you have to read them with pgm_read_xxx(). That's generally okay
-   for ordinary use, but really bad when you're writing super fast
-   codes because the compiler doesn't treat them as constants and
-   cannot optimize them away with sbi/cbi instructions.
-
-   Therefore we have to tell the compiler the PORT and BIT here.
-   Hope someday we can find a way to workaround this.
-
-   Check the manual of your MCU for port/bit mapping.
-
-   The following example demonstrates setting channels for all pins
-   on the ATmega328P or ATmega168 used on Arduino Uno, Pro Mini,
-   Nano and other boards. */
-
-
 
 // KingKong AKA BlueSeries 12a
 
@@ -83,16 +65,19 @@ SOFTPWM_DEFINE_CHANNEL(3, DDRD, PORTD, PORTD5);  //Arduino pin 13  AnFET
 
 #define PPM_MAX_LOC  128
 #define PPM_MIN_LOC  64
-#define PWM_LEVELS 128
-#define PWM_HZ 600
+#define PWM_LEVELS 127
+#define PWM_HZ 1000
+
+#define RC_MIN_DEFAULT 150
+#define RC_MAX_DEFAULT 300
 
 #define DEADBAND 20
 #define TIMEOUT 2000
 
 
 
-SOFTPWM_DEFINE_OBJECT_WITH_PWM_LEVELS(4, PWM_LEVELS);
-SOFTPWM_DEFINE_EXTERN_OBJECT_WITH_PWM_LEVELS(4, PWM_LEVELS);
+SOFTPWM_DEFINE_OBJECT_WITH_PWM_LEVELS(4, PWM_LEVELS - 1);
+SOFTPWM_DEFINE_EXTERN_OBJECT_WITH_PWM_LEVELS(4, PWM_LEVELS - 1);
 
 int finalSpeed = 0; //-250 - 0 - 250
 long pulse_time = 0;
@@ -100,8 +85,12 @@ long pulse_time = 0;
 int lastPulse = 100;
 long lastUpdate = 0;
 
-int rcMin = 125;
-int rcMax = 300;
+int rcMin = RC_MIN_DEFAULT;
+int rcMax = RC_MAX_DEFAULT;
+
+int smoothSpeed1 = 0;
+int smoothSpeed2 = 0;
+int smoothSpeed3 = 0;
 
 
 //This function sets the actual speed to the motor
@@ -118,31 +107,35 @@ void applySpeed(int speed){
 
   if (speed > 0){
     speed = map(speed, DEADBAND, PWM_LEVELS, 0, PWM_LEVELS);
-    Palatis::SoftPWM.set(1, 0); //Stop CpFET
-    Palatis::SoftPWM.set(3, 0); //Stop at AnFET
-    Palatis::SoftPWM.set(0, speed); //ApFET //Chop the high side
-    Palatis::SoftPWM.set(2, PWM_LEVELS); //CnFET
+    Palatis::SoftPWM.set(0, speed); //CLOSE ApFET //Chop the high side
+    Palatis::SoftPWM.set(1, 0); //OPEN CpFET
+    Palatis::SoftPWM.set(2, PWM_LEVELS); //CLOSE CnFET
+    Palatis::SoftPWM.set(3, 0); //OPEN  AnFET
   }
   else if (speed < 0){
     speed = map(speed * -1, DEADBAND, PWM_LEVELS, 0, PWM_LEVELS) * -1;
-    Palatis::SoftPWM.set(0, 0); //Stop th ApFET
-    Palatis::SoftPWM.set(2, 0); //Stop at CnFET
-    Palatis::SoftPWM.set(1, speed * -1); //CpFET //Chop the high side
-    Palatis::SoftPWM.set(3, PWM_LEVELS); //AnFET Open
+    Palatis::SoftPWM.set(0, 0); //OPEN th ApFET
+    Palatis::SoftPWM.set(1, speed * -1); // CLOSECpFET //Chop the high side
+    Palatis::SoftPWM.set(2, 0); //OPEN at CnFET
+    Palatis::SoftPWM.set(3, PWM_LEVELS); //CLOSE AnFET
   }
   else {
-    //Lets tie both pins to ground for breaking
-    Palatis::SoftPWM.set(0, 0); //Stop ApFET
-    Palatis::SoftPWM.set(2, PWM_LEVELS); //CnFET Open
-    Palatis::SoftPWM.set(1, 0); //Stop CpFET
-    Palatis::SoftPWM.set(3, PWM_LEVELS); //AnFET Open
+    //Lets disconnect the motor
+    Palatis::SoftPWM.set(0, 0); //OPEN ApFET
+    Palatis::SoftPWM.set(1, 0); //OPEN CpFET
+    Palatis::SoftPWM.set(2, 0); //OPEN CnFET
+    Palatis::SoftPWM.set(3, 0); //OPEN AnFET
   }
 
 }
 
-void doBeep(){
-  applySpeed(100);
-  delay(10);
+void doBeep(int cMax){
+  for (int cnt = 0; cnt < cMax; cnt++){
+    applySpeed((PWM_LEVELS/4)*3);
+    delayMicroseconds(250);
+    applySpeed((PWM_LEVELS/4)*3 * -1);
+    delayMicroseconds(250);
+  }
   applySpeed(0);
   delay(100);
 }
@@ -173,11 +166,12 @@ long EEPROMReadlong(long address) {
   return ((four << 0) & 0xFF) + ((three << 8) & 0xFFFF) + ((two << 16) & 0xFFFFFF) + ((one << 24) & 0xFFFFFFFF);
 }
 
-void programMinMax(){
+bool programMinMax(){
+  doBeep(100);
+  doBeep(100);
+  doBeep(100);
   long max = 0;
   long min = 10000;
-  doBeep();
-  doBeep();
   lastUpdate = millis();
   while(millis() - lastUpdate < TIMEOUT){
     pulse_time = pulseIn(rcIN, HIGH, 25000);
@@ -186,9 +180,8 @@ void programMinMax(){
       lastUpdate = millis();
     }
   }
-  doBeep();
+  doBeep(200);
   lastUpdate = millis();
-
   while(millis() - lastUpdate < TIMEOUT){
     pulse_time = pulseIn(rcIN, HIGH, 25000);
     if (pulse_time < min){
@@ -196,18 +189,23 @@ void programMinMax(){
       lastUpdate = millis();
     }
   }
-  doBeep();
-  doBeep();
-  doBeep();
-  doBeep();
-  delay(2000);
+
+
   if (max - min < 20){
     //Not enough different between max and min;
-    return;
+    doBeep(500);
+    delay(1000);
+    return false;
+
   }
+  doBeep(50);
+  doBeep(100);
+  doBeep(50);
+  doBeep(100);
   EEPROMWritelong(PPM_MIN_LOC, min);
   EEPROMWritelong(PPM_MAX_LOC, max);
-
+  delay(1000);
+  return true;
 
 }
 
@@ -217,12 +215,26 @@ void setup() {
   pinMode(rcIN, INPUT);
   Palatis::SoftPWM.begin(PWM_HZ);
   Palatis::SoftPWM.allOff();
+  doBeep(50);
+  doBeep(50);
   delay(2000);
+
+  while(pulseIn(rcIN, HIGH, 25000) == 0){
+    delay(3000);
+    doBeep(50);
+  }
+
   pulse_time = pulseIn(rcIN, HIGH, 25000);
-  rcMin = EEPROMReadlong(PPM_MIN_LOC);
-  rcMax = EEPROMReadlong(PPM_MAX_LOC);
+  if (EEPROMReadlong(PPM_MIN_LOC) > 0){
+    rcMin = EEPROMReadlong(PPM_MIN_LOC);
+  }
+  if (EEPROMReadlong(PPM_MAX_LOC) > rcMin){
+    rcMax = EEPROMReadlong(PPM_MAX_LOC);
+  }
   if (pulse_time > rcMax * 0.8){
-      programMinMax();
+      while (!programMinMax()){ //If min max failed... try again forever
+        delay (500);
+      }
   }
   applySpeed(0);
   rcMin = EEPROMReadlong(PPM_MIN_LOC);
@@ -245,8 +257,15 @@ void loop() {
       applySpeed(0);
     }
     else {
+
+
       finalSpeed = map(pulse_time, rcMin, rcMax, PWM_LEVELS * -1, PWM_LEVELS);
-      applySpeed(finalSpeed);
+      smoothSpeed3 = smoothSpeed2;
+      smoothSpeed2 = smoothSpeed1;
+      smoothSpeed1 = finalSpeed;
+
+
+      applySpeed((smoothSpeed1+smoothSpeed2+smoothSpeed3)/3);
     }
     delay(10);
 }
