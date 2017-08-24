@@ -24,20 +24,7 @@ THE SOFTWARE.
 
 #include <Arduino.h>
 #include <EEPROM.h>
-
 #include <SoftPWM.h>
-
-// KingKong AKA BlueSeries 12a
-
-
-// RC_IN D2 -> D2
-//
-// AnFet D5 -> D5
-// ApFet D4 -> D4
-// BnFet C4 -> A4
-// BpFet C5 -> A5
-// CnFet B0 -> D8
-// CpFet C3 -> A3
 
 
 //Settings for KingKong 12a
@@ -47,20 +34,8 @@ SOFTPWM_DEFINE_CHANNEL_INVERT(1, DDRC, PORTC, PORTC3);  //Arduino pin 4 CpFET
 
 SOFTPWM_DEFINE_CHANNEL(2, DDRB, PORTB, PORTB0);  //Arduino pin 5   CnFET
 SOFTPWM_DEFINE_CHANNEL(3, DDRD, PORTD, PORTD5);  //Arduino pin 13  AnFET
-//*/
 
 
-// Settings for DYS 16a
-//
-// #define rcIN 8
-//
-// SOFTPWM_DEFINE_CHANNEL_INVERT(1, DDRD, PORTD, PORTD2);  //Arduino pin 2 ApFET
-// SOFTPWM_DEFINE_CHANNEL_INVERT(2, DDRD, PORTD, PORTD3);  //Arduino pin 3 BpFET
-// SOFTPWM_DEFINE_CHANNEL_INVERT(3, DDRD, PORTD, PORTD4);  //Arduino pin 4 CpFET
-//
-// SOFTPWM_DEFINE_CHANNEL(4, DDRD, PORTD, PORTD5);  //Arduino pin 5   CnFET
-// SOFTPWM_DEFINE_CHANNEL(5, DDRD, PORTD, PORTD7);  //Arduino pin 7   BnFET
-// SOFTPWM_DEFINE_CHANNEL(6, DDRB, PORTB, PORTB1);  //Arduino pin 13  AnFET
 
 
 #define PPM_MAX_LOC  128
