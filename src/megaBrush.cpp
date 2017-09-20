@@ -25,26 +25,39 @@ THE SOFTWARE.
 #include <Arduino.h>
 #include <EEPROM.h>
 #include <SoftPWM.h>
+#include <avr/interrupt.h>
 
 
-//Settings for KingKong 12a
+
+//Settings for KingKong 12a (Also works for HobbyKing 30A and )
 #define rcIN 2
+#define hasLED false
+#define redLED 0
+#define greenLED 0
 SOFTPWM_DEFINE_CHANNEL_INVERT(0, DDRD, PORTD, PORTD4);  //Arduino pin 2 ApFET
 SOFTPWM_DEFINE_CHANNEL_INVERT(1, DDRC, PORTC, PORTC3);  //Arduino pin 4 CpFET
-
 SOFTPWM_DEFINE_CHANNEL(2, DDRB, PORTB, PORTB0);  //Arduino pin 5   CnFET
 SOFTPWM_DEFINE_CHANNEL(3, DDRD, PORTD, PORTD5);  //Arduino pin 13  AnFET
 
+//Settings for Afro ESC
+// #define rcIN 12  //PORTB0
+// #define hasLED true
+// #define redLED 16
+// #define greenLED 17
+// SOFTPWM_DEFINE_CHANNEL_INVERT(0, DDRD, PORTD, PORTD2);  //Arduino pin 2 ApFET
+// SOFTPWM_DEFINE_CHANNEL_INVERT(1, DDRC, PORTB, PORTB1);  //Arduino pin 4 CpFET
+// SOFTPWM_DEFINE_CHANNEL(2, DDRB, PORTD, PORTD5);  //Arduino pin 5   CnFET
+// SOFTPWM_DEFINE_CHANNEL(3, DDRD, PORTD, PORTD3);  //Arduino pin 13  AnFET
 
 
-
-#define PPM_MAX_LOC  128
-#define PPM_MIN_LOC  64
+#define PPM_MAX_LOC  32
+#define PPM_MIN_LOC  48
+#define PPM_NEVER_SET 40
 #define PWM_LEVELS 127
 #define PWM_HZ 1000
 
-#define RC_MIN_DEFAULT 150
-#define RC_MAX_DEFAULT 300
+#define RC_MIN_DEFAULT 450
+#define RC_MAX_DEFAULT 820
 
 #define DEADBAND 20
 #define TIMEOUT 2000
@@ -188,6 +201,12 @@ bool programMinMax(){
 // the setup function runs once when you press reset or power the board
 void setup() {
   pinMode(rcIN, INPUT);
+  if (hasLED){
+    pinMode(redLED, OUTPUT);
+    pinMode(greenLED, OUTPUT);
+    digitalWrite(redLED, HIGH);
+    digitalWrite(greenLED, HIGH);
+  }
   Palatis::SoftPWM.begin(PWM_HZ);
   Palatis::SoftPWM.allOff();
   doBeep(50);
@@ -196,7 +215,23 @@ void setup() {
 
   while(pulseIn(rcIN, HIGH, 25000) == 0){
     delay(3000);
+    if (hasLED){
+      digitalWrite(redLED, LOW);
+      digitalWrite(greenLED, LOW);
+    }
     doBeep(50);
+    if (hasLED){
+      digitalWrite(redLED, LOW);
+      digitalWrite(greenLED, LOW);
+    }
+  }
+
+
+  //If the EEPROM is empty lets load some sain defaults into the system.
+  if (EEPROM.read(PPM_NEVER_SET) == 255){
+      EEPROM.write(PPM_NEVER_SET, 32);
+      EEPROMWritelong(PPM_MIN_LOC, RC_MIN_DEFAULT);
+      EEPROMWritelong(PPM_MAX_LOC, RC_MAX_DEFAULT);
   }
 
   pulse_time = pulseIn(rcIN, HIGH, 25000);
@@ -206,14 +241,23 @@ void setup() {
   if (EEPROMReadlong(PPM_MAX_LOC) > rcMin){
     rcMax = EEPROMReadlong(PPM_MAX_LOC);
   }
+
   if (pulse_time > rcMax * 0.8){
-      while (!programMinMax()){ //If min max failed... try again forever
-        delay (500);
-      }
+    if (hasLED){
+      digitalWrite(redLED, HIGH);
+      digitalWrite(greenLED, LOW);
+    }
+    while (!programMinMax()){ //If min max failed... try again forever
+      delay (500);
+    }
   }
   applySpeed(0);
   rcMin = EEPROMReadlong(PPM_MIN_LOC);
   rcMax = EEPROMReadlong(PPM_MAX_LOC);
+  if (hasLED){
+    digitalWrite(redLED, LOW);
+    digitalWrite(greenLED, HIGH);
+  }
 }
 
 
