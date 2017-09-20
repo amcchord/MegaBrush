@@ -16,13 +16,10 @@ This library makes it possible easily convert a brushless ESC into a brushed ESC
 1. Download the [BLHeli flashing tool](https://blhelisuite.wordpress.com/) and flash the .hex file
 1. Use the "Flash Other" Option to flash the hex file.
 
-
-##Tested firmware
+## Tested firmware
 * SKGeneric
   * KingKong 12a
   * T-Motor S35A
 
-
-##ESC Performance
-
+## ESC Performance
 ![Oscilloscope](/docs/scope.png)
