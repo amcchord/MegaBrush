@@ -24,5 +24,4 @@ This library makes it possible easily convert a brushless ESC into a brushed ESC
 
 
 ##ESC Performance
-
-!(Oscilloscope)[/docs/scope.png]
+!(/docs/scope.png)[Oscilloscope]
