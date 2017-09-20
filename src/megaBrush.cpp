@@ -80,6 +80,8 @@ int smoothSpeed1 = 0;
 int smoothSpeed2 = 0;
 int smoothSpeed3 = 0;
 
+bool waitingForDeadBand = 1;
+
 
 //This function sets the actual speed to the motor
 void applySpeed(int speed){
@@ -283,8 +285,15 @@ void loop() {
       smoothSpeed2 = smoothSpeed1;
       smoothSpeed1 = finalSpeed;
 
-
-      applySpeed((smoothSpeed1+smoothSpeed2+smoothSpeed3)/3);
+      if (!waitingForDeadBand){
+        applySpeed((smoothSpeed1+smoothSpeed2+smoothSpeed3)/3);
+      } else {
+        if (finalSpeed < DEADBAND && finalSpeed > DEADBAND * -1){
+          waitingForDeadBand = 0;
+        }
+        delay(50);
+        doBeep(10);
+      }
     }
     delay(10);
 }
