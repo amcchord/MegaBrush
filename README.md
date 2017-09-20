@@ -9,6 +9,7 @@ This library makes it possible easily convert a brushless ESC into a brushed ESC
 * Simple PPM Smoothing
 * Deadband for throttle center
 * Easy to install when using SimonK Bootloader
+* Failsafe on signal loss
 
 ## Installation Instructions (For SimonK ESCs)
 1. Look for the .hex file for your ESC in the firmware directory.
@@ -20,3 +21,7 @@ This library makes it possible easily convert a brushless ESC into a brushed ESC
 * SKGeneric
   * KingKong 12a
   * T-Motor S35A
+
+
+##ESC Performance
+!(Oscilloscope)[docs/scope.png]
