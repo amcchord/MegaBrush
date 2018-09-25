@@ -59,7 +59,7 @@ SOFTPWM_DEFINE_CHANNEL(3, DDRD, PORTD, PORTD5);  //Arduino pin 13  AnFET
 #define RC_MIN_DEFAULT 450
 #define RC_MAX_DEFAULT 820
 
-#define DEADBAND 20
+#define DEADBAND 10
 #define TIMEOUT 2000
 
 
@@ -79,6 +79,8 @@ int rcMax = RC_MAX_DEFAULT;
 int smoothSpeed1 = 0;
 int smoothSpeed2 = 0;
 int smoothSpeed3 = 0;
+
+int printUpdate = 1;
 
 bool waitingForDeadBand = 1;
 
@@ -157,6 +159,7 @@ long EEPROMReadlong(long address) {
 }
 
 bool programMinMax(){
+  Serial.println("Programming Min Max");
   doBeep(100);
   doBeep(100);
   doBeep(100);
@@ -170,6 +173,8 @@ bool programMinMax(){
       lastUpdate = millis();
     }
   }
+  Serial.print("Max Set: ");
+  Serial.println(max);
   doBeep(200);
   lastUpdate = millis();
   while(millis() - lastUpdate < TIMEOUT){
@@ -179,15 +184,19 @@ bool programMinMax(){
       lastUpdate = millis();
     }
   }
+  Serial.print("Min Set: ");
+  Serial.println(min);
 
 
   if (max - min < 20){
     //Not enough different between max and min;
+    Serial.print("FAIL: Points too close");
     doBeep(500);
     delay(1000);
     return false;
 
   }
+  Serial.print("SUCCESS:");
   doBeep(50);
   doBeep(100);
   doBeep(50);
@@ -202,6 +211,7 @@ bool programMinMax(){
 
 // the setup function runs once when you press reset or power the board
 void setup() {
+  Serial.begin(9600);
   pinMode(rcIN, INPUT);
   if (hasLED){
     pinMode(redLED, OUTPUT);
@@ -226,6 +236,7 @@ void setup() {
       digitalWrite(redLED, LOW);
       digitalWrite(greenLED, LOW);
     }
+    Serial.println("No Pulse Found");
   }
 
 
@@ -244,7 +255,7 @@ void setup() {
     rcMax = EEPROMReadlong(PPM_MAX_LOC);
   }
 
-  if (pulse_time > rcMax * 0.8){
+  if (pulse_time > rcMax * 0.9){
     if (hasLED){
       digitalWrite(redLED, HIGH);
       digitalWrite(greenLED, LOW);
@@ -265,6 +276,7 @@ void setup() {
 
 // the loop function runs over and over again forever
 void loop() {
+
     pulse_time = pulseIn(rcIN, HIGH, 25000);
     if (pulse_time != lastPulse){
       lastPulse = pulse_time;
@@ -275,18 +287,30 @@ void loop() {
       if (millis() < 2000 && lastUpdate > 2000 ){
         lastUpdate = millis();
       }
+      Serial.write(0xFE);
+      Serial.write(0x58);
+      Serial.println("Signal Lost.");
       applySpeed(0);
     }
     else {
-
 
       finalSpeed = map(pulse_time, rcMin, rcMax, PWM_LEVELS * -1, PWM_LEVELS);
       smoothSpeed3 = smoothSpeed2;
       smoothSpeed2 = smoothSpeed1;
       smoothSpeed1 = finalSpeed;
 
+      //lets send the median
+      if ((smoothSpeed1 <= smoothSpeed2 && smoothSpeed1 >= smoothSpeed3) || (smoothSpeed1 >= smoothSpeed2 && smoothSpeed1 <= smoothSpeed3)){
+        finalSpeed = smoothSpeed1;
+      }
+      else if ((smoothSpeed2 <= smoothSpeed1 && smoothSpeed1 >= smoothSpeed3) || (smoothSpeed1 >= smoothSpeed1 && smoothSpeed1 <= smoothSpeed3)){
+        finalSpeed = smoothSpeed2;
+      }
+      else if ((smoothSpeed3 <= smoothSpeed1 && smoothSpeed1 >= smoothSpeed2) || (smoothSpeed3 >= smoothSpeed1 && smoothSpeed1 <= smoothSpeed2)){
+        finalSpeed = smoothSpeed3;
+      }
       if (!waitingForDeadBand){
-        applySpeed((smoothSpeed1+smoothSpeed2+smoothSpeed3)/3);
+        applySpeed(finalSpeed);
       } else {
         if (finalSpeed < DEADBAND && finalSpeed > DEADBAND * -1){
           waitingForDeadBand = 0;
@@ -295,5 +319,17 @@ void loop() {
         doBeep(10);
       }
     }
-    delay(10);
+    delay(8);
+    if (printUpdate > 10){
+      Serial.write(0xFE);
+      Serial.write(0x58);
+      Serial.print("Pls: ");
+      Serial.print(pulse_time);
+      Serial.print(" Spd: ");
+      Serial.print(finalSpeed);
+      printUpdate = 1;
+    } else {
+      delay(2);
+    }
+    printUpdate++;
 }
