@@ -55,9 +55,10 @@ SOFTPWM_DEFINE_CHANNEL(3, DDRD, PORTD, PORTD5);  //Arduino pin 13  AnFET
 #define PPM_NEVER_SET 40
 #define PWM_LEVELS 127
 #define PWM_HZ 1000
+#define SERIAL_DEBUG false
 
-#define RC_MIN_DEFAULT 450
-#define RC_MAX_DEFAULT 820
+#define RC_MIN_DEFAULT 445
+#define RC_MAX_DEFAULT 800
 
 #define DEADBAND 10
 #define TIMEOUT 2000
@@ -159,7 +160,7 @@ long EEPROMReadlong(long address) {
 }
 
 bool programMinMax(){
-  Serial.println("Programming Min Max");
+  if (SERIAL_DEBUG){Serial.println("Programming Min Max");}
   doBeep(100);
   doBeep(100);
   doBeep(100);
@@ -173,8 +174,10 @@ bool programMinMax(){
       lastUpdate = millis();
     }
   }
-  Serial.print("Max Set: ");
-  Serial.println(max);
+  if (SERIAL_DEBUG){
+    Serial.print("Max Set: ");
+    Serial.println(max);
+  }
   doBeep(200);
   lastUpdate = millis();
   while(millis() - lastUpdate < TIMEOUT){
@@ -184,19 +187,21 @@ bool programMinMax(){
       lastUpdate = millis();
     }
   }
-  Serial.print("Min Set: ");
-  Serial.println(min);
+  if (SERIAL_DEBUG){
+    Serial.print("Min Set: ");
+    Serial.println(min);
+  }
 
 
   if (max - min < 20){
     //Not enough different between max and min;
-    Serial.print("FAIL: Points too close");
+    if (SERIAL_DEBUG){Serial.print("FAIL: Points too close");}
     doBeep(500);
     delay(1000);
     return false;
 
   }
-  Serial.print("SUCCESS:");
+  if (SERIAL_DEBUG){Serial.print("SUCCESS:");}
   doBeep(50);
   doBeep(100);
   doBeep(50);
@@ -211,7 +216,7 @@ bool programMinMax(){
 
 // the setup function runs once when you press reset or power the board
 void setup() {
-  Serial.begin(9600);
+  if (SERIAL_DEBUG){Serial.begin(9600);}
   pinMode(rcIN, INPUT);
   if (hasLED){
     pinMode(redLED, OUTPUT);
@@ -287,14 +292,16 @@ void loop() {
       if (millis() < 2000 && lastUpdate > 2000 ){
         lastUpdate = millis();
       }
-      Serial.write(0xFE);
-      Serial.write(0x58);
-      Serial.println("Signal Lost.");
+      if (SERIAL_DEBUG){
+        Serial.write(0xFE);
+        Serial.write(0x58);
+        Serial.println("Signal Lost.");
+      }
       applySpeed(0);
     }
     else {
 
-      finalSpeed = map(pulse_time, rcMin, rcMax, PWM_LEVELS * -1, PWM_LEVELS);
+      finalSpeed = pulse_time;
       smoothSpeed3 = smoothSpeed2;
       smoothSpeed2 = smoothSpeed1;
       smoothSpeed1 = finalSpeed;
@@ -309,6 +316,10 @@ void loop() {
       else if ((smoothSpeed3 <= smoothSpeed1 && smoothSpeed1 >= smoothSpeed2) || (smoothSpeed3 >= smoothSpeed1 && smoothSpeed1 <= smoothSpeed2)){
         finalSpeed = smoothSpeed3;
       }
+
+      finalSpeed = map(finalSpeed, rcMin, rcMax, PWM_LEVELS * -1, PWM_LEVELS);
+
+
       if (!waitingForDeadBand){
         applySpeed(finalSpeed);
       } else {
@@ -319,17 +330,22 @@ void loop() {
         doBeep(10);
       }
     }
-    delay(8);
-    if (printUpdate > 10){
-      Serial.write(0xFE);
-      Serial.write(0x58);
-      Serial.print("Pls: ");
-      Serial.print(pulse_time);
-      Serial.print(" Spd: ");
-      Serial.print(finalSpeed);
-      printUpdate = 1;
-    } else {
-      delay(2);
+    if (SERIAL_DEBUG){
+      delay(8);
+      if (printUpdate > 10){
+        Serial.write(0xFE);
+        Serial.write(0x58);
+        Serial.print("Pls: ");
+        Serial.print(pulse_time);
+        Serial.print(" Spd: ");
+        Serial.print(finalSpeed);
+        printUpdate = 1;
+      } else {
+        delay(2);
+      }
+      printUpdate++;
     }
-    printUpdate++;
+    else {
+      delay(10);
+    }
 }
