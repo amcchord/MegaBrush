@@ -40,13 +40,13 @@ SOFTPWM_DEFINE_CHANNEL(2, DDRB, PORTB, PORTB0);  //Arduino pin 5   CnFET
 SOFTPWM_DEFINE_CHANNEL(3, DDRD, PORTD, PORTD5);  //Arduino pin 13  AnFET
 
 //Settings for Afro ESC
-// #define rcIN 12  //PORTB0
+// #define rcIN 8  // PORTB0
 // #define hasLED true
-// #define redLED 16
-// #define greenLED 17
+// #define redLED 16 // PORTC3
+// #define greenLED 17 // PORTC2
 // SOFTPWM_DEFINE_CHANNEL_INVERT(0, DDRD, PORTD, PORTD2);  //Arduino pin 2 ApFET
-// SOFTPWM_DEFINE_CHANNEL_INVERT(1, DDRC, PORTB, PORTB1);  //Arduino pin 4 CpFET
-// SOFTPWM_DEFINE_CHANNEL(2, DDRB, PORTD, PORTD5);  //Arduino pin 5   CnFET
+// SOFTPWM_DEFINE_CHANNEL_INVERT(1, DDRB, PORTB, PORTB1);  //Arduino pin 4 CpFET
+// SOFTPWM_DEFINE_CHANNEL(2, DDRD, PORTD, PORTD5);  //Arduino pin 5   CnFET
 // SOFTPWM_DEFINE_CHANNEL(3, DDRD, PORTD, PORTD3);  //Arduino pin 13  AnFET
 
 
